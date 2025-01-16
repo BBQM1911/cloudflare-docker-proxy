@@ -15,9 +15,10 @@ const routes = {
   ["ghcr." + CUSTOM_DOMAIN]: "https://ghcr.io",
   ["cloudsmith." + CUSTOM_DOMAIN]: "https://docker.cloudsmith.io",
   ["ecr." + CUSTOM_DOMAIN]: "https://public.ecr.aws",
+  ["google." + CUSTOM_DOMAIN]: "https://www.google.com",
 
   // staging
-  ["docker-staging." + CUSTOM_DOMAIN]: dockerHub,
+  // ["docker-staging." + CUSTOM_DOMAIN]: dockerHub,
 };
 
 function routeByHosts(host) {
@@ -33,17 +34,15 @@ function routeByHosts(host) {
 async function handleRequest(request) {
   const url = new URL(request.url);
   const upstream = routeByHosts(url.hostname);
+  // 禁止非预期访问
   if (upstream === "") {
-    return new Response(
-      JSON.stringify({
-        routes: routes,
-      }),
-      {
-        status: 404,
-      }
-    );
+    return new Response(JSON.stringify({"result": "Not Allow"}), {status: 404,});
   }
+
+  // 判断是否是duckerHub的反代
   const isDockerHub = upstream == dockerHub;
+
+  //处理仓库认证过程
   const authorization = request.headers.get("Authorization");
   if (url.pathname == "/v2/") {
     const newUrl = new URL(upstream + "/v2/");
@@ -89,6 +88,8 @@ async function handleRequest(request) {
     }
     return await fetchToken(wwwAuthenticate, scope, authorization);
   }
+
+  
   // redirect for DockerHub library images
   // Example: /v2/busybox/manifests/latest => /v2/library/busybox/manifests/latest
   if (isDockerHub) {
@@ -100,6 +101,7 @@ async function handleRequest(request) {
       return Response.redirect(redirectUrl, 301);
     }
   }
+  
   // foward requests
   const newUrl = new URL(upstream + url.pathname);
   const newReq = new Request(newUrl, {
